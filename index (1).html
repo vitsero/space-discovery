@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>COSMIC AR</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Rajdhani',sans-serif;color:#fff;}
+::-webkit-scrollbar{display:none;}
+#app{width:100vw;height:100vh;position:relative;background:#000008;}
+canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;}
+.screen{position:absolute;inset:0 0 62px 0;z-index:1;overflow:hidden;transition:opacity .35s ease,transform .35s cubic-bezier(.4,0,.2,1);}
+.screen.out-left{opacity:0;transform:translateX(-44px);pointer-events:none;}
+.screen.out-right{opacity:0;transform:translateX(44px);pointer-events:none;}
+.screen.in-left{animation:inL .35s cubic-bezier(.4,0,.2,1) forwards;}
+.screen.in-right{animation:inR .35s cubic-bezier(.4,0,.2,1) forwards;}
+@keyframes inL{from{opacity:0;transform:translateX(-44px)}to{opacity:1;transform:none}}
+@keyframes inR{from{opacity:0;transform:translateX(44px)}to{opacity:1;transform:none}}
+nav{position:absolute;bottom:0;left:0;right:0;height:62px;z-index:10;display:flex;
+  background:rgba(0,0,10,.97);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.06);}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  border:none;background:transparent;cursor:pointer;position:relative;}
+nav button .ic{font-size:18px;transition:filter .2s;}
+nav button .lb{font-size:7px;letter-spacing:2px;font-weight:700;color:rgba(255,255,255,.2);transition:all .2s;font-family:'Orbitron',monospace;}
+nav button.active .lb{color:#ff00ff;text-shadow:0 0 8px #ff00ff;}
+nav button.active .ic{filter:drop-shadow(0 0 6px #ff00ff);}
+nav button:not(.active) .ic{filter:grayscale(.7) opacity(.35);}
+nav button.active::before{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;
+  border-radius:2px;background:linear-gradient(90deg,#ff00ff,#00ffff);
+  box-shadow:0 0 10px #ff00ff,0 0 20px #ff00ff44;}
+#toast{display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;
+  background:rgba(0,20,0,.96);border:2px solid #00ff9f;border-radius:14px;
+  padding:11px 24px;color:#00ff9f;font-family:'Orbitron',monospace;font-size:11px;letter-spacing:1px;
+  box-shadow:0 0 28px rgba(0,255,150,.5);backdrop-filter:blur(16px);white-space:nowrap;
+  animation:toastIn .3s ease;}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* HOME */
+#homeScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:0 24px;gap:24px;}
+.subtitle{font-size:9px;letter-spacing:6px;color:#ff00ff;text-shadow:0 0 12px #ff00ff;font-family:'Orbitron',monospace;}
+.bigtitle{font-size:46px;font-weight:900;line-height:1.05;text-align:center;
+  background:linear-gradient(135deg,#00ffff,#ff00ff,#00ff9f);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 20px rgba(255,0,255,.4));font-family:'Orbitron',monospace;}
+.ring-wrap{position:relative;width:154px;height:154px;}
+.ring-wrap svg{transform:rotate(-90deg);}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.ring-num{font-size:38px;font-weight:900;color:#fff;line-height:1;text-shadow:0 0 20px #00ffff;font-family:'Orbitron',monospace;}
+.ring-sub{font-size:8px;color:rgba(255,255,255,.35);letter-spacing:2px;}
+.ring-pct{font-size:13px;color:#00ffff;margin-top:3px;text-shadow:0 0 8px #00ffff;font-family:'Orbitron',monospace;}
+.stats{display:flex;gap:10px;width:100%;max-width:320px;}
+.stat{flex:1;background:rgba(255,255,255,.04);border-radius:12px;padding:10px 4px;text-align:center;backdrop-filter:blur(10px);}
+.stat-val{font-size:20px;font-weight:900;font-family:'Orbitron',monospace;}
+.stat-lbl{font-size:7px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-top:2px;}
+.btn-p{width:100%;max-width:300px;padding:15px 0;border-radius:50px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#ff00ff,#7b2dff);color:#fff;font-family:'Orbitron',monospace;
+  font-size:12px;letter-spacing:3px;font-weight:700;box-shadow:0 0 28px rgba(255,0,255,.5);}
+.btn-s{width:100%;max-width:300px;padding:12px 0;border-radius:50px;cursor:pointer;
+  background:transparent;border:1px solid rgba(0,255,255,.3);color:#00ffff;
+  font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;}
+.btn-p:active,.btn-s:active{transform:scale(.97);}
+
+/* EXPLORE */
+#exploreScreen{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+.exp-hdr{padding:18px 18px 0;flex-shrink:0;}
+.exp-cat{font-size:8px;letter-spacing:5px;color:#ff00ff;margin-bottom:3px;font-family:'Orbitron',monospace;}
+.exp-ttl{font-size:19px;font-family:'Orbitron',monospace;background:linear-gradient(90deg,#00ffff,#ff00ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.srch{margin-top:10px;position:relative;}
+.srch span{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.25);font-size:12px;}
+.srch input{width:100%;padding:8px 11px 8px 32px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;
+  font-family:'Orbitron',monospace;font-size:10px;outline:none;}
+.tabs{display:flex;gap:7px;margin-top:10px;overflow-x:auto;padding-bottom:2px;}
+.tab{flex-shrink:0;padding:5px 13px;border-radius:20px;border:none;cursor:pointer;
+  font-family:'Orbitron',monospace;font-size:8px;letter-spacing:1px;
+  background:rgba(255,255,255,.06);color:rgba(255,255,255,.3);transition:all .25s;}
+.tab.active{background:linear-gradient(135deg,#ff00ff,#7b2dff);color:#fff;box-shadow:0 0 10px rgba(255,0,255,.3);}
+.exp-cnt{margin-top:7px;font-size:8px;color:rgba(255,255,255,.22);letter-spacing:2px;font-family:'Orbitron',monospace;}
+.exp-list{flex:1;overflow-y:auto;padding:4px 18px 18px;}
+.obj-card{display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:7px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  border-radius:13px;backdrop-filter:blur(8px);transition:all .3s;}
+.obj-card.found{background:rgba(0,255,255,.05);border-color:rgba(0,255,255,.22);box-shadow:0 0 10px rgba(0,255,255,.07);}
+.obj-card.visible{border-color:rgba(255,255,0,.15);} /* above horizon tonight */
+.obj-em{font-size:24px;flex-shrink:0;transition:filter .3s;}
+.obj-card:not(.found) .obj-em{filter:grayscale(1) opacity(.22);}
+.obj-card.found .obj-em{filter:drop-shadow(0 0 7px #00ffff);}
+.obj-nm{font-size:12px;font-weight:700;letter-spacing:.4px;color:rgba(255,255,255,.25);}
+.obj-card.found .obj-nm{color:#fff;}
+.badge{font-size:7px;padding:2px 6px;border-radius:20px;background:rgba(0,255,255,.12);color:#00ffff;letter-spacing:1px;margin-left:5px;}
+.badge-vis{font-size:7px;padding:2px 6px;border-radius:20px;background:rgba(255,255,0,.1);color:#ffff00;letter-spacing:1px;margin-left:5px;}
+.obj-desc{font-size:9px;color:rgba(255,255,255,.28);line-height:1.5;margin-top:2px;}
+.obj-pos{font-size:9px;color:rgba(255,180,0,.6);margin-top:3px;font-family:'Orbitron',monospace;}
+.lock{font-size:14px;flex-shrink:0;}
+
+/* AR */
+#arScreen{height:100%;position:relative;overflow:hidden;background:#000;}
+#arVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
+#arOvl{position:absolute;inset:0;background:rgba(0,0,20,.25);display:none;}
+#arGrid{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,255,.035) 1px,transparent 1px);
+  background-size:40px 40px;animation:gScroll 8s linear infinite;display:none;}
+@keyframes gScroll{0%{background-position:0 0}100%{background-position:40px 40px}}
+.cor{position:absolute;width:26px;height:26px;border-top:2px solid #00ffff;border-left:2px solid #00ffff;
+  opacity:.75;box-shadow:0 0 7px rgba(0,255,255,.35);display:none;}
+#arTop{position:absolute;top:24px;left:50%;transform:translateX(-50%);
+  text-align:center;font-family:'Orbitron',monospace;display:none;pointer-events:none;}
+#arTopLbl{font-size:9px;letter-spacing:4px;color:#00ffff;text-shadow:0 0 8px #00ffff;}
+#arTopCnt{font-size:7px;color:rgba(255,255,255,.3);letter-spacing:2px;margin-top:1px;}
+
+/* IDLE SCREEN */
+#arIdle{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;padding:0 30px;gap:22px;
+  background:radial-gradient(ellipse at 50% 35%,#0c0028 0%,#000 70%);}
+#arIdle .ai-em{font-size:60px;filter:drop-shadow(0 0 28px #ff00ff);}
+#arIdle .ai-ttl{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;margin-bottom:10px;text-align:center;
+  background:linear-gradient(90deg,#ff00ff,#00ffff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+#arIdle .ai-desc{font-size:12px;color:rgba(255,255,255,.45);line-height:1.9;text-align:center;}
+#btnEnable{padding:14px 40px;border-radius:50px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#ff00ff,#7b2dff);color:#fff;
+  font-family:'Orbitron',monospace;font-size:12px;letter-spacing:3px;font-weight:700;
+  box-shadow:0 0 28px rgba(255,0,255,.45);}
+#btnEnable:active{transform:scale(.97);}
+#arDiscCnt{font-size:9px;color:rgba(255,255,255,.18);letter-spacing:2px;font-family:'Orbitron',monospace;}
+
+/* COMPASS DEBUG */
+#compassBar{position:absolute;top:60px;left:12px;right:12px;display:none;
+  font-family:'Orbitron',monospace;font-size:9px;color:rgba(255,255,255,.4);
+  background:rgba(0,0,0,.5);padding:5px 10px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.08);letter-spacing:1px;text-align:center;}
+
+/* SIGNALSCOPE */
+#scope{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;}
+#scopeWrap{position:relative;width:240px;height:240px;}
+#scopeSvg{position:absolute;top:0;left:0;width:100%;height:100%;}
+#scopeLbl{position:absolute;top:-38px;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:8px;letter-spacing:3px;
+  color:#00ffff;text-shadow:0 0 8px #00ffff;white-space:nowrap;text-align:center;}
+#scopeTarget{position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);
+  font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;
+  color:#ff00ff;text-shadow:0 0 8px #ff00ff;white-space:nowrap;opacity:0;transition:opacity .4s;}
+/* crosshair */
+#chH{position:absolute;top:50%;left:50%;width:18px;height:1px;background:#00ffff;transform:translate(-50%,-50%);box-shadow:0 0 4px #00ffff;}
+#chV{position:absolute;top:50%;left:50%;width:1px;height:18px;background:#00ffff;transform:translate(-50%,-50%);box-shadow:0 0 4px #00ffff;}
+/* freq bars */
+#freqWrap{position:absolute;bottom:-70px;left:50%;transform:translateX(-50%);
+  display:flex;gap:2px;align-items:flex-end;height:28px;}
+.fb{width:4px;border-radius:2px;background:linear-gradient(to top,#00ffff,#ff00ff);
+  animation:fb .5s ease-in-out infinite alternate;}
+@keyframes fb{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+/* signal rings */
+.sring{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  border-radius:50%;border:1px solid rgba(0,255,255,0);
+  animation:sringOut 2.5s ease-out infinite;}
+@keyframes sringOut{0%{width:0;height:0;border-color:rgba(0,255,255,.7)}100%{width:260px;height:260px;border-color:transparent}}
+
+/* LOCK ON */
+#lockFlash{position:absolute;inset:0;background:rgba(0,255,200,.06);pointer-events:none;opacity:0;}
+@keyframes lockAnim{0%{opacity:0}30%{opacity:1}100%{opacity:0}}
+
+/* DISCOVERED CARD */
+/* LOCK ON OVERLAY */
+#discOverlay{display:none;position:absolute;inset:0;z-index:100;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(6px);
+  flex-direction:column;align-items:center;justify-content:flex-end;padding:0 0 80px 0;}
+#discCard{background:rgba(0,5,15,.97);border:2px solid rgba(0,255,255,.6);
+  border-radius:22px;padding:20px;width:calc(100% - 24px);max-width:420px;
+  box-shadow:0 0 40px rgba(0,255,255,.25),0 0 80px rgba(0,255,255,.1);}
+.dc-head{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+.dc-em{font-size:44px;filter:drop-shadow(0 0 16px #00ffff);}
+.dc-nm{font-size:18px;font-weight:900;color:#fff;font-family:'Orbitron',monospace;letter-spacing:1px;}
+.dc-tp{font-size:8px;color:#00ffff;letter-spacing:3px;margin-top:4px;}
+.dc-desc{font-size:12px;color:rgba(255,255,255,.6);line-height:1.65;margin-bottom:10px;font-family:'Rajdhani',sans-serif;}
+.dc-pos{font-size:9px;color:rgba(255,200,0,.7);margin-bottom:16px;font-family:'Orbitron',monospace;letter-spacing:1px;}
+.dc-btns{display:flex;gap:10px;}
+#btnDisc{flex:2;padding:16px 0;border-radius:14px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#00ff9f,#00ffff,#7b2dff);color:#fff;
+  font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:3px;
+  box-shadow:0 0 30px rgba(0,255,180,.6);animation:discPulse 1s ease-in-out infinite alternate;
+  -webkit-tap-highlight-color:transparent;}
+@keyframes discPulse{from{box-shadow:0 0 20px rgba(0,255,180,.5),0 0 0 0 rgba(0,255,200,.3)}to{box-shadow:0 0 40px rgba(0,255,255,.9),0 0 80px rgba(0,255,100,.4),0 0 0 8px rgba(0,255,200,.05)}}
+#btnDism{flex:1;padding:16px 0;border-radius:14px;cursor:pointer;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  color:rgba(255,255,255,.4);font-family:'Orbitron',monospace;font-size:11px;
+  -webkit-tap-highlight-color:transparent;}
+#btnDisc:active{transform:scale(.96);}
+#btnDism:active{transform:scale(.96);}
+
+/* TAP HINT */
+#tapHint{position:absolute;bottom:80px;left:0;right:0;text-align:center;
+  font-family:'Orbitron',monospace;font-size:10px;letter-spacing:3px;
+  color:rgba(255,255,255,.4);animation:hPulse 2s ease-in-out infinite;display:none;}
+@keyframes hPulse{0%,100%{opacity:.25}50%{opacity:.7}}
+
+/* HTTPS warning */
+#httpsBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+  background:linear-gradient(90deg,#c00,#ff4400);padding:9px 14px;
+  font-family:'Orbitron',monospace;font-size:9px;color:#fff;letter-spacing:1px;
+  text-align:center;line-height:1.7;box-shadow:0 2px 16px rgba(255,0,0,.5);}
+
+/* no-obj message */
+#noObjMsg{display:none;position:absolute;bottom:80px;left:12px;right:12px;
+  background:rgba(0,0,0,.82);border:1px solid rgba(255,255,0,.25);
+  border-radius:14px;padding:12px 16px;text-align:center;
+  font-family:'Orbitron',monospace;font-size:9px;color:rgba(255,255,0,.7);
+  letter-spacing:1px;line-height:1.7;z-index:50;}
+</style>
+</head>
+<body>
+<div id="app">
+<canvas id="stars"></canvas>
+<div id="httpsBanner">⚠ La fotocamera richiede HTTPS — apri questo file su GitHub Pages o Netlify</div>
+<div id="toast"></div>
+
+<!-- HOME -->
+<div class="screen" id="homeScreen">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:0 22px;gap:22px;">
+    <div><div class="subtitle">ESPLORA L'UNIVERSO</div>
+    <div class="bigtitle">COSMIC<br>AR</div>
+    <div style="font-size:10px;color:rgba(255,255,255,.35);letter-spacing:4px;margin-top:8px;text-align:center;font-family:'Orbitron',monospace;">ASTRONOMIA IN TEMPO REALE</div></div>
+    <div class="ring-wrap">
+      <svg width="154" height="154">
+        <circle cx="77" cy="77" r="62" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="8"/>
+        <circle id="ringProg" cx="77" cy="77" r="62" fill="none" stroke="url(#pg)" stroke-width="8" stroke-linecap="round"
+          style="filter:drop-shadow(0 0 8px #00ffff);transition:stroke-dashoffset 1.2s ease;"/>
+        <defs><linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00ffff"/><stop offset="50%" stop-color="#ff00ff"/><stop offset="100%" stop-color="#00ff9f"/>
+        </linearGradient></defs>
+      </svg>
+      <div class="ring-center"><div class="ring-num" id="rNum">0</div><div class="ring-sub" id="rTot">/ 36 SCOPERTI</div><div class="ring-pct" id="rPct">0%</div></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val" style="color:#ff00ff;text-shadow:0 0 10px #ff00ff;">16</div><div class="stat-lbl">COSTELLAZIONI</div></div>
+      <div class="stat"><div class="stat-val" style="color:#00ffff;text-shadow:0 0 10px #00ffff;">8</div><div class="stat-lbl">PIANETI</div></div>
+      <div class="stat"><div class="stat-val" style="color:#00ff9f;text-shadow:0 0 10px #00ff9f;">12</div><div class="stat-lbl">STELLE</div></div>
+    </div>
+    <button class="btn-p" onclick="go('ar')">&#128247; AVVIA AR CAMERA</button>
+    <button class="btn-s" onclick="go('explore')">&#128301; CATALOGO CELESTE</button>
+  </div>
+</div>
+
+<!-- EXPLORE -->
+<div class="screen" id="exploreScreen" style="display:none;">
+  <div class="exp-hdr">
+    <div class="exp-cat">CATALOGO</div><div class="exp-ttl">Oggetti Celesti</div>
+    <div class="srch"><span>&#128269;</span><input id="srchIn" type="text" placeholder="Cerca..." oninput="renderList()"/></div>
+    <div class="tabs">
+      <button class="tab active" id="tabC" onclick="setTab('c')">COSTELLAZIONI</button>
+      <button class="tab" id="tabP" onclick="setTab('p')">PIANETI</button>
+      <button class="tab" id="tabS" onclick="setTab('s')">STELLE</button>
+    </div>
+    <div class="exp-cnt" id="expCnt"></div>
+  </div>
+  <div class="exp-list" id="expList"></div>
+</div>
+
+<!-- AR -->
+<div class="screen" id="arScreen" style="display:none;">
+  <!-- IDLE -->
+  <div id="arIdle">
+    <div class="ai-em" id="arIdleEm">&#128247;</div>
+    <div style="text-align:center;">
+      <div class="ai-ttl" id="arIdleTitle">AR CAMERA</div>
+      <div class="ai-desc" id="arIdleDesc">Attiva la fotocamera e i sensori di orientamento.<br>Punta verso il cielo per trovare stelle e pianeti reali in base alla tua posizione GPS.</div>
+    </div>
+    <button id="btnEnable" onclick="enableAR()">&#8853; ABILITA AR</button>
+    <div id="arDiscCnt"></div>
+  </div>
+  <!-- CAMERA ACTIVE -->
+  <video id="arVideo" muted playsinline autoplay></video>
+  <div id="arOvl"></div>
+  <div id="arGrid"></div>
+  <div class="cor" id="c1" style="top:20px;left:20px;"></div>
+  <div class="cor" id="c2" style="top:20px;right:20px;transform:rotate(90deg);"></div>
+  <div class="cor" id="c3" style="bottom:80px;left:20px;transform:rotate(270deg);"></div>
+  <div class="cor" id="c4" style="bottom:80px;right:20px;transform:rotate(180deg);"></div>
+  <div id="arTop"><div id="arTopLbl">AR SCANNER</div><div id="arTopCnt"></div></div>
+  <div id="compassBar"></div>
+  <!-- SIGNALSCOPE -->
+  <div id="scope">
+    <div id="scopeWrap">
+      <div id="scopeLbl">PUNTA VERSO IL CIELO</div>
+      <svg id="scopeSvg" viewBox="0 0 240 240">
+        <defs><filter id="glow2"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        <path id="arcL" fill="none" stroke="#00ffff" stroke-width="2.5" stroke-linecap="round" filter="url(#glow2)"/>
+        <path id="arcR" fill="none" stroke="#00ffff" stroke-width="2.5" stroke-linecap="round" filter="url(#glow2)"/>
+        <!-- tick marks -->
+        <g id="ticks" stroke="rgba(0,255,255,.3)" stroke-width="1"></g>
+      </svg>
+      <div class="sring" style="animation-delay:0s"></div>
+      <div class="sring" style="animation-delay:.83s"></div>
+      <div class="sring" style="animation-delay:1.66s"></div>
+      <div id="chH"></div><div id="chV"></div>
+      <div id="scopeTarget">OGGETTO RILEVATO</div>
+      <div id="freqWrap">
+        <div class="fb" style="height:55%;animation-delay:0s"></div><div class="fb" style="height:90%;animation-delay:.08s"></div>
+        <div class="fb" style="height:40%;animation-delay:.16s"></div><div class="fb" style="height:75%;animation-delay:.24s"></div>
+        <div class="fb" style="height:60%;animation-delay:.32s"></div><div class="fb" style="height:85%;animation-delay:.40s"></div>
+        <div class="fb" style="height:45%;animation-delay:.48s"></div><div class="fb" style="height:70%;animation-delay:.56s"></div>
+        <div class="fb" style="height:35%;animation-delay:.64s"></div><div class="fb" style="height:80%;animation-delay:.72s"></div>
+        <div class="fb" style="height:50%;animation-delay:.80s"></div><div class="fb" style="height:65%;animation-delay:.88s"></div>
+      </div>
+    </div>
+  </div>
+  <div id="lockFlash"></div>
+  <div id="tapHint">&#9654; PUNTA VERSO UNA STELLA</div>
+  <!-- DISCOVERED -->
+  <div id="discOverlay">
+    <div id="discCard">
+      <div class="dc-head"><div class="dc-em" id="dcEm"></div><div><div class="dc-nm" id="dcNm"></div><div class="dc-tp" id="dcTp"></div></div></div>
+      <div class="dc-desc" id="dcDesc"></div>
+      <div class="dc-pos" id="dcPos"></div>
+      <div class="dc-btns">
+        <button id="btnDisc" onclick="confirmDisc()">&#9733; SBLOCCA</button>
+        <button id="btnDism" onclick="dismissDisc()">PASSA</button>
+      </div>
+    </div>
+  </div>
+  <div id="noObjMsg"></div>
+</div>
+</div><!-- end app -->
+
+<nav>
+  <button id="navHome" class="active" onclick="go('home')"><span class="ic">&#127756;</span><span class="lb">HOME</span></button>
+  <button id="navAr" onclick="go('ar')"><span class="ic">&#128247;</span><span class="lb">AR</span></button>
+  <button id="navExplore" onclick="go('explore')"><span class="ic">&#128301;</span><span class="lb">CATALOGO</span></button>
+</nav>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// ASTRONOMY ENGINE
+// ══════════════════════════════════════════════════════════
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+
+function jd(date){ return date.getTime()/86400000 + 2440587.5; }
+
+function gmst(JD){
+  const T=(JD-2451545)/36525;
+  return ((280.46061837 + 360.98564736629*(JD-2451545) + 0.000387933*T*T)%360+360)%360;
+}
+function lst(JD,lon){ return (gmst(JD)+lon+360)%360; }
+
+// RA(hours), Dec(deg) → Alt(deg), Az(deg)
+function toAltAz(ra_h, dec_d, lat_d, lon_d, date){
+  const JD=jd(date), LST=lst(JD,lon_d);
+  const HA=((LST - ra_h*15)+360)%360;
+  const latR=lat_d*D2R, decR=dec_d*D2R, haR=HA*D2R;
+  const sinAlt=Math.sin(latR)*Math.sin(decR)+Math.cos(latR)*Math.cos(decR)*Math.cos(haR);
+  const alt=Math.asin(Math.max(-1,Math.min(1,sinAlt)))*R2D;
+  const sinAz=-Math.cos(decR)*Math.sin(haR);
+  const cosAz=Math.sin(decR)*Math.cos(latR)-Math.cos(decR)*Math.cos(haR)*Math.sin(latR);
+  return {alt, az:((Math.atan2(sinAz,cosAz)*R2D)+360)%360};
+}
+
+// Angular distance between two alt/az points
+function angDist(az1,alt1,az2,alt2){
+  const a1=alt1*D2R,a2=alt2*D2R,daz=(az2-az1)*D2R;
+  const c=Math.sin(a1)*Math.sin(a2)+Math.cos(a1)*Math.cos(a2)*Math.cos(daz);
+  return Math.acos(Math.max(-1,Math.min(1,c)))*R2D;
+}
+
+// Sun (low precision)
+function sunPos(date){
+  const n=jd(date)-2451545;
+  const L=((280.460+0.9856474*n)%360+360)%360;
+  const g=((357.528+0.9856003*n)%360+360)%360*D2R;
+  const lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*D2R;
+  const eps=(23.439-0.0000004*n)*D2R;
+  const ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam))*R2D/15;
+  return {ra:((ra%24)+24)%24, dec:Math.asin(Math.sin(eps)*Math.sin(lam))*R2D};
+}
+
+// Moon (simplified, ~1° accuracy)
+function moonPos(date){
+  const JD=jd(date), T=(JD-2451545)/36525;
+  const L=((218.316+481267.881*T)%360+360)%360;
+  const M=((134.963+477198.867*T)%360+360)%360*D2R;
+  const D=((297.850+445267.115*T)%360+360)%360*D2R;
+  const F=((93.272+483202.018*T)%360+360)%360*D2R;
+  const lon=L+6.289*Math.sin(M)+1.274*Math.sin(2*D-M)+0.658*Math.sin(2*D);
+  const lat=5.128*Math.sin(F);
+  const eps=23.439*D2R, lonR=lon*D2R, latR=lat*D2R;
+  const ra=Math.atan2(Math.sin(lonR)*Math.cos(eps)-Math.tan(latR)*Math.sin(eps),Math.cos(lonR))*R2D/15;
+  return {ra:((ra%24)+24)%24, dec:Math.asin(Math.sin(latR)*Math.cos(eps)+Math.cos(latR)*Math.sin(eps)*Math.sin(lonR))*R2D};
+}
+
+// Planet positions (VSOP87 simplified, ~1-3° accuracy)
+function solveKepler(M_deg,e){
+  let E=M_deg*D2R;
+  for(let i=0;i<8;i++) E=M_deg*D2R+e*Math.sin(E);
+  return E;
+}
+function planetPos(name,date){
+  const JD=jd(date), T=(JD-2451545)/36525;
+  // [L0, dL, a, e, i, omega(lon of peri), node]
+  const el={
+    mercury:[252.251,149472.675,0.38710,0.20563,7.005, 77.456,48.331],
+    venus:  [181.980, 58517.816,0.72333,0.00677,3.395,131.533,76.680],
+    mars:   [355.433, 19140.299,1.52366,0.09341,1.851,336.041,49.579],
+    jupiter:[ 34.352,  3034.906,5.20336,0.04839,1.305, 14.754,100.556],
+    saturn: [ 50.077,  1222.114,9.53707,0.05415,2.485, 92.432,113.715],
+    uranus: [314.055,   428.467,19.1913,0.04717,0.770,170.964, 74.230],
+    neptune:[304.349,   218.486,30.0690,0.00859,1.769, 44.971,131.722],
+  }[name];
+  if(!el)return null;
+  const [L0,dL,a,e,inc,w,node]=el;
+  const Lp=((L0+dL*T/36525)%360+360)%360;
+  const Mp=((Lp-w)%360+360)%360;
+  const Ep=solveKepler(Mp,e);
+  const xv=a*(Math.cos(Ep)-e), yv=a*Math.sqrt(1-e*e)*Math.sin(Ep);
+  const wR=(w-node)*D2R, nR=node*D2R, iR=inc*D2R;
+  const cosN=Math.cos(nR),sinN=Math.sin(nR),cosI=Math.cos(iR),cosW=Math.cos(wR),sinW=Math.sin(wR);
+  // heliocentric ecliptic
+  const xh=xv*(cosN*cosW-sinN*sinW*cosI)-yv*(cosN*sinW+sinN*cosW*cosI);
+  const yh=xv*(sinN*cosW+cosN*sinW*cosI)-yv*(sinN*sinW-cosN*cosW*cosI);
+  const zh=xv*sinW*Math.sin(iR)+yv*cosW*Math.sin(iR);
+  // Sun heliocentric (for conversion to geocentric)
+  const n=JD-2451545;
+  const Ls=((280.460+0.9856474*n)%360+360)%360*D2R;
+  const gs=((357.528+0.9856003*n)%360+360)%360*D2R;
+  const Rs=1.00014-0.01671*Math.cos(gs)-0.00014*Math.cos(2*gs);
+  const lam_s=Ls+1.915e-2*D2R*Math.sin(gs)/D2R*D2R + 0.020*D2R*Math.sin(2*gs);
+  const sx=-Rs*Math.cos(lam_s), sy=-Rs*Math.sin(lam_s);
+  // geocentric ecliptic
+  const gx=xh+sx, gy=yh+sy, gz=zh;
+  const eps=(23.439-0.0000004*n)*D2R;
+  const ra=Math.atan2(gy*Math.cos(eps)-gz*Math.sin(eps),gx)*R2D/15;
+  const dec=Math.atan2(gz*Math.cos(eps)+gy*Math.sin(eps),Math.sqrt(gx*gx+gy*gy))*R2D;
+  return {ra:((ra%24)+24)%24, dec};
+}
+
+// ══════════════════════════════════════════════════════════
+// DATA CATALOG
+// Fixed RA/Dec (J2000) for stars & constellations
+// ══════════════════════════════════════════════════════════
+const CONS=[
+  {id:"orion",    name:"Orion",        em:"🌟",desc:"Il cacciatore celeste, visibile d'inverno",         ra:5.58,  dec:5.0,   tol:20,type:"constellation"},
+  {id:"ursa",     name:"Orsa Maggiore",em:"🐻",desc:"Il Grande Carro, punta verso la Polare",            ra:11.0,  dec:55.0,  tol:22,type:"constellation"},
+  {id:"scorpius", name:"Scorpione",    em:"🦂",desc:"Costellazione zodiacale estiva brillante",          ra:16.5,  dec:-30.0, tol:20,type:"constellation"},
+  {id:"cassiopeia",name:"Cassiopeia",  em:"👑",desc:"La W luminosa, sempre visibile al nord",            ra:1.0,   dec:60.0,  tol:18,type:"constellation"},
+  {id:"leo",      name:"Leone",        em:"🦁",desc:"Costellazione zodiacale primaverile",               ra:10.5,  dec:15.0,  tol:18,type:"constellation"},
+  {id:"cygnus",   name:"Cigno",        em:"🦢",desc:"La Croce del Nord, estate",                        ra:20.5,  dec:42.0,  tol:18,type:"constellation"},
+  {id:"lyra",     name:"Lira",         em:"🎵",desc:"Piccola ma brillante con Vega",                    ra:18.75, dec:36.0,  tol:14,type:"constellation"},
+  {id:"aquila",   name:"Aquila",       em:"🦅",desc:"Contiene Altair, Triangolo Estivo",                ra:19.67, dec:5.0,   tol:16,type:"constellation"},
+  {id:"perseus",  name:"Perseo",       em:"⚔️", desc:"Eroe con la testa di Medusa",                      ra:3.5,   dec:45.0,  tol:18,type:"constellation"},
+  {id:"andromeda",name:"Andromeda",    em:"🌌",desc:"Contiene la galassia vicina M31",                  ra:1.0,   dec:40.0,  tol:20,type:"constellation"},
+  {id:"virgo",    name:"Vergine",      em:"🌾",desc:"Seconda costellazione più grande del cielo",        ra:13.5,  dec:-5.0,  tol:22,type:"constellation"},
+  {id:"gemini",   name:"Gemelli",      em:"♊", desc:"Castore e Polluce, gemelli celesti",               ra:7.0,   dec:22.0,  tol:18,type:"constellation"},
+  {id:"taurus",   name:"Toro",         em:"🐂",desc:"Pleiadi e Aldebaran, inverno",                     ra:4.5,   dec:18.0,  tol:20,type:"constellation"},
+  {id:"sagittarius",name:"Sagittario", em:"🏹",desc:"Punta verso il centro della Via Lattea",           ra:19.0,  dec:-28.0, tol:20,type:"constellation"},
+  {id:"cancer",   name:"Cancro",       em:"🦀",desc:"La più debole delle zodiacali",                    ra:8.5,   dec:20.0,  tol:16,type:"constellation"},
+  {id:"pisces",   name:"Pesci",        em:"🐟",desc:"Due pesci legati da un nastro celeste",            ra:1.0,   dec:15.0,  tol:20,type:"constellation"},
+];
+const STARS=[
+  {id:"sirius",    name:"Sirio",       em:"💫",desc:"La stella più luminosa del cielo notturno",        ra:6.752, dec:-16.72,tol:8, type:"star"},
+  {id:"vega",      name:"Vega",        em:"💠",desc:"Futuro polo nord celeste tra 12.000 anni",         ra:18.615,dec:38.78, tol:8, type:"star"},
+  {id:"arcturus",  name:"Arturo",      em:"🟡",desc:"Gigante arancione, quarta più brillante",          ra:14.261,dec:19.18, tol:8, type:"star"},
+  {id:"betelgeuse",name:"Betelgeuse",  em:"🔴",desc:"Supergigante rossa destinata a supernova",        ra:5.919, dec:7.407, tol:8, type:"star"},
+  {id:"rigel",     name:"Rigel",       em:"💙",desc:"Supergigante blu-bianca, piede di Orione",        ra:5.242, dec:-8.20, tol:8, type:"star"},
+  {id:"altair",    name:"Altair",      em:"⚡", desc:"Rotazione ultra-rapida, Triangolo Estivo",        ra:19.846,dec:8.868, tol:8, type:"star"},
+  {id:"deneb",     name:"Deneb",       em:"✨",desc:"Una delle stelle più luminose in assoluto",       ra:20.691,dec:45.28, tol:8, type:"star"},
+  {id:"polaris",   name:"Stella Polare",em:"⭐",desc:"La guida immobile, punta sempre a Nord",         ra:2.530, dec:89.26, tol:10,type:"star"},
+  {id:"antares",   name:"Antares",     em:"🩸",desc:"Cuore dello Scorpione, supergigante rossa",       ra:16.490,dec:-26.43,tol:8, type:"star"},
+  {id:"spica",     name:"Spica",       em:"💜",desc:"Stella doppia, gioiello della Vergine",           ra:13.420,dec:-11.16,tol:8, type:"star"},
+  {id:"capella",   name:"Capella",     em:"🌕",desc:"Sistema di 4 stelle nel Cocchiere",              ra:5.278, dec:45.998,tol:8, type:"star"},
+  {id:"aldebaran", name:"Aldebaran",   em:"🟠",desc:"L'occhio del Toro, gigante arancione",           ra:4.599, dec:16.509,tol:8, type:"star"},
+];
+const PLANETS=[
+  {id:"moon",    name:"Luna",    em:"🌙",desc:"Il nostro satellite, il più facile da trovare",tol:6, type:"planet",fn:()=>moonPos(new Date())},
+  {id:"mercury", name:"Mercurio",em:"⚫",desc:"Il pianeta più vicino al Sole",               tol:8, type:"planet",fn:()=>planetPos('mercury',new Date())},
+  {id:"venus",   name:"Venere",  em:"🌟",desc:"Il pianeta più luminoso del cielo",           tol:8, type:"planet",fn:()=>planetPos('venus',new Date())},
+  {id:"mars",    name:"Marte",   em:"🔴",desc:"Il pianeta rosso con Olympus Mons",           tol:8, type:"planet",fn:()=>planetPos('mars',new Date())},
+  {id:"jupiter", name:"Giove",   em:"🟠",desc:"Il gigante del sistema solare",               tol:8, type:"planet",fn:()=>planetPos('jupiter',new Date())},
+  {id:"saturn",  name:"Saturno", em:"🪐",desc:"Il signore degli anelli ghiacciati",          tol:8, type:"planet",fn:()=>planetPos('saturn',new Date())},
+  {id:"uranus",  name:"Urano",   em:"🔵",desc:"Il pianeta che ruota su un fianco",           tol:8, type:"planet",fn:()=>planetPos('uranus',new Date())},
+  {id:"neptune", name:"Nettuno", em:"🌊",desc:"I venti più veloci del sistema solare",       tol:8, type:"planet",fn:()=>planetPos('neptune',new Date())},
+];
+const ALL=[...CONS,...STARS,...PLANETS];
+
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const disc=new Set();
+let curScreen='home', curTab='c';
+let camStream=null, orientHandler=null;
+let userLat=null, userLon=null;
+let camAz=0, camAlt=45; // current pointing direction
+let computedObjs=[]; // {obj, alt, az} for current location/time
+let detectedObj=null, lockTimer=null;
+let lastNearObj=null, lastNearDist=999;
+let arActive=false;
+
+// ══════════════════════════════════════════════════════════
+// STARFIELD
+// ══════════════════════════════════════════════════════════
+(function(){
+  const cv=document.getElementById('stars'),ctx=cv.getContext('2d');
+  let t=0;
+  const pts=Array.from({length:200},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.5+.3,spd:Math.random()*.00011+.00004,hue:Math.random()*360,tw:Math.random()*Math.PI*2}));
+  function resize(){cv.width=innerWidth;cv.height=innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  function draw(){t+=.012;ctx.clearRect(0,0,cv.width,cv.height);
+    function neb(cx,cy,r,c){const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,c);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);}
+    neb(cv.width*.3,cv.height*.4,cv.width*.5,'rgba(70,0,140,.1)');
+    neb(cv.width*.75,cv.height*.6,cv.width*.4,'rgba(0,50,130,.09)');
+    neb(cv.width*.5,cv.height*.85,cv.width*.35,'rgba(130,0,65,.08)');
+    pts.forEach(s=>{s.x+=s.spd;if(s.x>1)s.x=0;const tw=Math.sin(t*2+s.tw)*.4+.6;const x=s.x*cv.width,y=s.y*cv.height;const g=ctx.createRadialGradient(x,y,0,x,y,s.r*3);g.addColorStop(0,'hsla('+(s.hue+t*18)+',100%,92%,'+tw+')');g.addColorStop(.5,'hsla('+(s.hue+t*18)+',100%,70%,'+(tw*.35)+')');g.addColorStop(1,'transparent');ctx.beginPath();ctx.arc(x,y,s.r*3,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();});
+    requestAnimationFrame(draw);}
+  draw();
+})();
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';t.style.animation='none';t.offsetHeight;t.style.animation='toastIn .3s ease';setTimeout(()=>t.style.display='none',3200);}
+
+// ══════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════
+const SORD=['home','ar','explore'];
+function go(s){
+  if(s===curScreen)return;
+  if(s!=='ar') stopAR();
+  const fi=SORD.indexOf(curScreen), ti=SORD.indexOf(s), right=ti>fi;
+  const scr={home:'homeScreen',ar:'arScreen',explore:'exploreScreen'};
+  const fromEl=document.getElementById(scr[curScreen]);
+  const toEl=document.getElementById(scr[s]);
+  fromEl.classList.add(right?'out-left':'out-right');
+  setTimeout(()=>{fromEl.style.display='none';fromEl.classList.remove('out-left','out-right');},320);
+  toEl.style.display='flex';
+  if(s==='ar'||s==='home') toEl.style.display='block';
+  toEl.classList.remove('in-left','in-right');void toEl.offsetWidth;
+  toEl.classList.add(right?'in-right':'in-left');
+  setTimeout(()=>toEl.classList.remove('in-left','in-right'),380);
+  curScreen=s;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById({home:'navHome',ar:'navAr',explore:'navExplore'}[s]).classList.add('active');
+  if(s==='explore') renderList();
+  if(s==='home') updateHome();
+  if(s==='ar'){document.getElementById('arDiscCnt').textContent=disc.size+'/'+ALL.length+' OGGETTI SCOPERTI'; resetArIdle();}
+}
+
+function resetArIdle(){
+  if(!camStream){
+    document.getElementById('arIdle').style.display='flex';
+    ['arVideo','arOvl','arGrid','c1','c2','c3','c4','arTop','scope','tapHint','compassBar','discOverlay','noObjMsg'].forEach(id=>{
+      const el=document.getElementById(id); if(el)el.style.display='none';
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// HOME
+// ══════════════════════════════════════════════════════════
+function updateHome(){
+  const d=disc.size,tot=ALL.length,c=2*Math.PI*62;
+  document.getElementById('rNum').textContent=d;
+  document.getElementById('rTot').textContent='/ '+tot+' SCOPERTI';
+  document.getElementById('rPct').textContent=Math.round(d/tot*100)+'%';
+  const r=document.getElementById('ringProg');
+  r.setAttribute('stroke-dasharray',c);
+  r.setAttribute('stroke-dashoffset',c*(1-d/tot));
+}
+updateHome();
+
+// ══════════════════════════════════════════════════════════
+// EXPLORE
+// ══════════════════════════════════════════════════════════
+function setTab(t){
+  curTab=t;
+  ['c','p','s'].forEach(id=>document.getElementById('tab'+id.toUpperCase()).classList.toggle('active',id===t));
+  renderList();
+}
+function renderList(){
+  const q=(document.getElementById('srchIn').value||'').toLowerCase();
+  const src=curTab==='c'?CONS:curTab==='p'?PLANETS:STARS;
+  const items=q?src.filter(i=>i.name.toLowerCase().includes(q)||i.desc.toLowerCase().includes(q)):src;
+  const now=new Date();
+  document.getElementById('expCnt').textContent=items.length+' OGGETTI - '+items.filter(i=>disc.has(i.id)).length+' SCOPERTI';
+  document.getElementById('expList').innerHTML=items.map(item=>{
+    const found=disc.has(item.id);
+    // compute visibility if we have location
+    let posStr='', vis=false;
+    if(userLat!==null){
+      const rd=getObjRaDec(item,now);
+      if(rd){
+        const aa=toAltAz(rd.ra,rd.dec,userLat,userLon,now);
+        vis=aa.alt>5;
+        if(found) posStr='Az '+Math.round(aa.az)+'° Alt '+Math.round(aa.alt)+'°';
+      }
+    }
+    const ri=RICH[item.id];
+    let richHtml='';
+    if(found&&ri){
+      const dkeys=Object.keys(ri.data);
+      richHtml='<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;">';
+      dkeys.forEach(k=>{richHtml+='<span style="background:rgba(0,255,255,.08);border:1px solid rgba(0,255,255,.2);border-radius:8px;padding:3px 8px;font-size:8px;color:rgba(0,255,255,.8);font-family:Orbitron,monospace;letter-spacing:1px;">'+k.replace(/_/g,' ').toUpperCase()+': '+ri.data[k]+'</span>';});
+      richHtml+='</div>';
+      if(ri.facts&&ri.facts.length>0){
+        richHtml+='<div style="margin-top:8px;">';
+        ri.facts.forEach(f=>{richHtml+='<div style="font-size:9px;color:rgba(255,255,255,.35);padding:2px 0;padding-left:10px;position:relative;font-family:Rajdhani,sans-serif;"><span style="position:absolute;left:0;color:#00ffff;">&#183;</span>'+f+'</div>';});
+        richHtml+='</div>';
+      }
+    }
+    return '<div class="obj-card'+(found?' found':'')+(vis&&!found?' visible':'')+'">'+
+      '<div style="width:100%;">'+
+      '<div style="display:flex;align-items:center;gap:11px;">'+
+      '<div class="obj-em">'+item.em+'</div>'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div class="obj-nm">'+(found?item.name:'???????????')+(found?'<span class="badge">SCOPERTO</span>':'')+(vis&&!found?'<span class="badge-vis">VISIBILE</span>':'')+
+        '</div>'+
+        '<div class="obj-desc">'+(found?item.desc:'Inquadra con AR per scoprire')+'</div>'+
+        (posStr&&found?'<div class="obj-pos">'+posStr+'</div>':'')+
+      '</div>'+
+      '<div class="lock">'+(found?'✅':'🔒')+'</div></div>'+
+      richHtml+
+      '</div></div>';
+  }).join('');
+}
+
+function getObjRaDec(item,date){
+  if(item.fn) return item.fn();
+  if(item.ra!==undefined) return {ra:item.ra,dec:item.dec};
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════
+// COMPUTE ALL OBJECT POSITIONS
+// ══════════════════════════════════════════════════════════
+function computePositions(){
+  if(userLat===null) return;
+  const now=new Date();
+  computedObjs=[];
+  ALL.forEach(item=>{
+    const rd=getObjRaDec(item,now);
+    if(!rd) return;
+    const aa=toAltAz(rd.ra,rd.dec,userLat,userLon,now);
+    computedObjs.push({obj:item, alt:aa.alt, az:aa.az});
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// SIGNALSCOPE
+// ══════════════════════════════════════════════════════════
+const CX=120,CY=120,R=105;
+function arcPath(s,e){
+  const sr=s*D2R,er=e*D2R;
+  const x1=CX+R*Math.cos(sr),y1=CY+R*Math.sin(sr);
+  const x2=CX+R*Math.cos(er),y2=CY+R*Math.sin(er);
+  const lg=(e-s)>180?1:0;
+  return 'M'+x1.toFixed(1)+' '+y1.toFixed(1)+' A'+R+' '+R+' 0 '+lg+' 1 '+x2.toFixed(1)+' '+y2.toFixed(1);
+}
+
+function updateScope(proximity, nearObj){
+  // proximity: 0=no signal, 1=locked
+  const gap=55*(1-proximity);
+  const lS=180+gap, lE=360-gap;
+  const rS=gap, rE=180-gap;
+  document.getElementById('arcL').setAttribute('d', arcPath(lS,lE));
+  document.getElementById('arcR').setAttribute('d', arcPath(rS,rE));
+  const r=Math.round(proximity*255), g=Math.round(255-proximity*100), b=255;
+  const col=`rgb(${r},${g},${b})`;
+  ['arcL','arcR'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.stroke=col;
+    el.style.strokeWidth=1.5+proximity*3;
+    el.style.filter='drop-shadow(0 0 '+(3+proximity*9)+'px '+col+')';
+  });
+  document.querySelectorAll('.fb').forEach(b=>{
+    b.style.animationDuration=(0.5-proximity*0.3)+'s';
+    b.style.background='linear-gradient(to top,'+col+',#ff00ff)';
+  });
+  const tgt=document.getElementById('scopeTarget');
+  tgt.style.opacity=proximity>0.55?''+(proximity-0.55)*2.2:'0';
+  const lbl=document.getElementById('scopeLbl');
+  if(nearObj&&proximity>0.1){
+    lbl.textContent=nearObj.obj.name.toUpperCase()+' - '+(proximity*100).toFixed(0)+'%';
+  } else {
+    lbl.textContent='PUNTA VERSO IL CIELO';
+  }
+  // chH/chV color
+  document.getElementById('chH').style.background=col;
+  document.getElementById('chV').style.background=col;
+  document.getElementById('chH').style.boxShadow='0 0 4px '+col;
+  document.getElementById('chV').style.boxShadow='0 0 4px '+col;
+}
+
+// ══════════════════════════════════════════════════════════
+// AR ENGINE
+// ══════════════════════════════════════════════════════════
+function enableAR(){
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+    document.getElementById('arIdleEm').innerHTML='🔒';
+    document.getElementById('arIdleTitle').textContent='HTTPS RICHIESTO';
+    document.getElementById('arIdleDesc').innerHTML='La fotocamera richiede HTTPS.<br>Carica su <b style="color:#00ffff">GitHub Pages</b> o <b style="color:#00ffff">Netlify</b>.';
+    document.getElementById('btnEnable').style.display='none';
+    document.getElementById('httpsBanner').style.display='block';
+    return;
+  }
+  const btn=document.getElementById('btnEnable');
+  btn.textContent='AVVIO...'; btn.disabled=true;
+
+  // 1. Get GPS
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userLat=pos.coords.latitude; userLon=pos.coords.longitude;
+    computePositions();
+    // 2. Start camera
+    startCamera();
+  }, err=>{
+    // No GPS - use fallback but still try camera
+    userLat=41.9; userLon=12.5; // default Italy
+    computePositions();
+    startCamera();
+  }, {enableHighAccuracy:true,timeout:8000});
+}
+
+function startCamera(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showArError('NON SUPPORTATO','Il tuo browser non supporta la fotocamera.'); return;
+  }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}})
+  .then(stream=>{
+    camStream=stream;
+    const vid=document.getElementById('arVideo');
+    vid.srcObject=stream;
+    vid.onloadedmetadata=()=>vid.play().catch(()=>{});
+    showARUI();
+    requestOrientation();
+  })
+  .catch(err=>{
+    if(err.name==='NotAllowedError') showArError('PERMESSO NEGATO','Vai in Impostazioni browser → Camera → abilita per questo sito.');
+    else showArError('ERRORE CAMERA',err.message);
+  });
+}
+
+function showARUI(){
+  arActive=true;
+  document.getElementById('arIdle').style.display='none';
+  ['arVideo','arOvl','arGrid','c1','c2','c3','c4'].forEach(id=>document.getElementById(id).style.display='block');
+  document.getElementById('arTop').style.display='block';
+  document.getElementById('scope').style.display='flex';
+  document.getElementById('tapHint').style.display='block';
+  document.getElementById('compassBar').style.display='block';
+  updateArTop();
+  updateScope(0,null);
+  // start position recompute loop
+  setInterval(()=>{if(arActive){computePositions();updateArTop();}},30000);
+}
+
+function updateArTop(){
+  document.getElementById('arTopCnt').textContent=disc.size+'/'+ALL.length+' SCOPERTI';
+}
+
+function requestOrientation(){
+  function attach(){
+    orientHandler=handleOrientation;
+    window.addEventListener('deviceorientationabsolute',orientHandler,true);
+    window.addEventListener('deviceorientation',orientHandler,true);
+  }
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(st=>{
+      if(st==='granted') attach();
+      else { document.getElementById('tapHint').textContent='⚠ Permesso bussola negato - tap per simulare'; document.getElementById('arScreen').addEventListener('click',simulateScan);}
+    }).catch(()=>attach());
+  } else {
+    attach();
+  }
+}
+
+let lastAbsolute=false;
+function handleOrientation(e){
+  if(!arActive)return;
+  const absolute=e.type==='deviceorientationabsolute'||(e.absolute===true);
+  if(absolute) lastAbsolute=true;
+  if(!absolute&&lastAbsolute) return; // prefer absolute
+
+  const alpha=e.alpha||0; // compass (0=North)
+  const beta=e.beta||90;  // front-back tilt
+  const gamma=e.gamma||0; // left-right tilt
+
+  // Camera direction when holding phone portrait, camera facing away from you:
+  // az = alpha (compass heading of phone top = camera direction in portrait)
+  // alt = 90 - |beta| when beta > 0 (tilting back raises altitude)
+  camAz=(alpha+360)%360;
+  camAlt=Math.max(-90,Math.min(90, 90-Math.abs(beta)));
+
+  // Update compass debug bar
+  document.getElementById('compassBar').textContent=
+    'Az '+Math.round(camAz)+'° | Alt '+Math.round(camAlt)+'° | '+(absolute?'TRUE NORTH':'MAG');
+
+  scanNearby();
+}
+
+function scanNearby(){
+  if(!arActive||detectedObj||computedObjs.length===0) return;
+  let best=null, bestDist=999;
+  computedObjs.forEach(co=>{
+    if(co.alt<-2) return; // below horizon
+    const d=angDist(camAz,camAlt,co.az,co.alt);
+    if(d<bestDist){bestDist=d;best=co;}
+  });
+  lastNearObj=best; lastNearDist=bestDist;
+
+  if(best){
+    const tol=best.obj.tol||15;
+    const maxDist=tol*2.5;
+    if(bestDist<maxDist){
+      const proximity=Math.max(0,Math.min(1,(maxDist-bestDist)/maxDist));
+      updateScope(proximity,best);
+      // Lock on when close enough
+      if(bestDist<tol&&!disc.has(best.obj.id)){
+        triggerLockOn(best,bestDist);
+      } else if(bestDist>=tol){
+        clearLock();
+      }
+      // Show no-obj message only when pointing high enough
+    } else {
+      updateScope(0,null);
+      clearLock();
+      maybeShowNoObj();
+    }
+  } else {
+    updateScope(0,null);
+    clearLock();
+    maybeShowNoObj();
+  }
+}
+
+let noObjTimeout=null;
+function maybeShowNoObj(){
+  if(camAlt>15&&computedObjs.length>0){
+    clearTimeout(noObjTimeout);
+    noObjTimeout=setTimeout(()=>{
+      if(!detectedObj&&arActive&&curScreen==='ar'){
+        // find nearest object above horizon
+        let best=null,bd=999;
+        computedObjs.forEach(co=>{if(co.alt>5){const d=angDist(camAz,camAlt,co.az,co.alt);if(d<bd){bd=d;best=co;}}});
+        if(best){
+          const el=document.getElementById('noObjMsg');
+          el.style.display='block';
+          el.innerHTML='Nessun oggetto in questa direzione.<br>'+best.obj.em+' <b style="color:#fff">'+best.obj.name+'</b> è a '+Math.round(bd)+'° — Az '+Math.round(best.az)+'°';
+          setTimeout(()=>{if(el)el.style.display='none';},4000);
+        }
+      }
+    },2000);
+  }
+}
+
+function triggerLockOn(co,dist){
+  if(detectedObj) return;
+  // show discovered card
+  detectedObj=co.obj;
+  document.getElementById('noObjMsg').style.display='none';
+  document.getElementById('tapHint').style.display='none';
+  updateScope(1,co);
+
+  // flash
+  const fl=document.getElementById('lockFlash');
+  fl.style.animation='none';fl.offsetHeight;fl.style.animation='lockAnim .6s ease forwards';
+
+  const aa={alt:Math.round(co.alt),az:Math.round(co.az)};
+  document.getElementById('dcEm').innerHTML=co.obj.em;
+  document.getElementById('dcNm').textContent=co.obj.name;
+  document.getElementById('dcTp').textContent=co.obj.type==='constellation'?'COSTELLAZIONE RILEVATA':co.obj.type==='planet'?'PIANETA RILEVATO':'STELLA RILEVATA';
+  document.getElementById('dcDesc').textContent=co.obj.desc;
+  document.getElementById('dcPos').textContent='Az '+aa.az+'° | Alt '+aa.alt+'° | Δ '+dist.toFixed(1)+'° dal centro';
+  document.getElementById('discOverlay').style.display='flex';
+  document.getElementById('arTopCnt').textContent=disc.size+'/'+ALL.length+' SCOPERTI';
+}
+
+function clearLock(){
+  // Nothing — lock stays until user dismisses or confirms
+}
+
+function confirmDisc(){
+  if(!detectedObj) return;
+  disc.add(detectedObj.id);
+  const name=detectedObj.name, em=detectedObj.em;
+  detectedObj=null;
+  document.getElementById('discOverlay').style.display='none';
+  document.getElementById('tapHint').style.display='block';
+  document.getElementById('tapHint').textContent='▶ PUNTA VERSO IL CIELO';
+  updateScope(0,null);
+  updateHome();
+  updateArTop();
+  toast(em+' '+name+' SBLOCCATO! ('+disc.size+'/'+ALL.length+')');
+  renderList();
+}
+
+function dismissDisc(){
+  detectedObj=null;
+  document.getElementById('discOverlay').style.display='none';
+  document.getElementById('tapHint').style.display='block';
+  updateScope(0,null);
+}
+
+// Simulate scan on tap (when no orientation data)
+function simulateScan(){
+  if(detectedObj||!arActive) return;
+  const und=computedObjs.filter(o=>o.alt>5&&!disc.has(o.obj.id));
+  if(und.length===0){toast('Nessun oggetto visibile in questo momento!');return;}
+  const pick=und[Math.floor(Math.random()*und.length)];
+  updateScope(1,pick);
+  setTimeout(()=>triggerLockOn(pick,pick.obj.tol-1),800);
+}
+
+function showArError(title,desc){
+  document.getElementById('arIdleEm').innerHTML='🚫';
+  document.getElementById('arIdleTitle').textContent=title;
+  document.getElementById('arIdleDesc').textContent=desc;
+  const btn=document.getElementById('btnEnable');
+  btn.textContent='↺ RIPROVA'; btn.disabled=false;
+}
+
+function stopAR(){
+  arActive=false;
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  if(orientHandler){
+    window.removeEventListener('deviceorientationabsolute',orientHandler,true);
+    window.removeEventListener('deviceorientation',orientHandler,true);
+    orientHandler=null;
+  }
+  detectedObj=null;
+  document.getElementById('arScreen').removeEventListener('click',simulateScan);
+  document.getElementById('discOverlay').style.display='none';
+  detectedObj=null;
+  clearTimeout(noObjTimeout);
+}
+
+// Check HTTPS on load
+if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+  document.getElementById('httpsBanner').style.display='block';
+}
+</script>
+</body>
+</html>
